@@ -180,6 +180,9 @@
   .field textarea{resize:vertical;min-height:90px;line-height:1.5}
   .field input::placeholder,.field textarea::placeholder{color:#b3a890;font-style:italic}
   .field input:focus,.field textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(198,162,76,.14)}
+  .members{margin-top:16px;display:flex;flex-direction:column;gap:12px}
+  .members-note{font-family:"Jost",sans-serif;font-size:.72rem;letter-spacing:.03em;color:var(--muted);font-style:italic;margin-bottom:2px}
+  .member label{display:block;font-family:"Jost",sans-serif;font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
   .choices{display:flex;gap:16px}
   .choice,.attend{flex:1;font-family:"Cormorant Garamond",serif;font-size:1.12rem;color:var(--ink);background:var(--field);
     border:1px solid var(--border);border-radius:9px;padding:18px;cursor:pointer;display:flex;align-items:center;
@@ -379,7 +382,8 @@
         </div>
         <div class="field" id="countField" style="display:none">
           <label for="count">How many people? (including you)</label>
-          <input id="count" type="number" min="1" inputmode="numeric" placeholder="e.g. 4" />
+          <input id="count" type="number" min="1" max="20" inputmode="numeric" placeholder="e.g. 4" />
+          <div id="memberFields" class="members"></div>
         </div>
         <div class="field" id="noteField">
           <label for="note" id="noteLabel">A note for us (optional)</label>
@@ -504,6 +508,7 @@
       nt.placeholder='Leave a message for the couple...';
     }else{
       cf.style.display='none'; ct.style.display='none'; coming=''; document.getElementById('count').value='';
+      document.getElementById('memberFields').innerHTML='';
       document.querySelectorAll('.choice').forEach(b=>{b.classList.remove('selected');b.setAttribute('aria-checked','false');});
       nl.textContent='Send the couple your blessings';
       nt.placeholder="We'll miss you \u2014 please leave your wishes and blessings...";
@@ -513,9 +518,31 @@
     document.querySelectorAll('.choice').forEach(b=>{b.classList.remove('selected');b.setAttribute('aria-checked','false');});
     btn.classList.add('selected');btn.setAttribute('aria-checked','true');coming=btn.dataset.val;document.getElementById('err').textContent='';
     const cf=document.getElementById('countField');
-    if(coming==='With Family'){ cf.style.display='block'; }
-    else{ cf.style.display='none'; document.getElementById('count').value=''; }
+    if(coming==='With Family'){ cf.style.display='block'; renderMembers(); }
+    else{ cf.style.display='none'; document.getElementById('count').value=''; document.getElementById('memberFields').innerHTML=''; }
   });});
+
+  const countInput=document.getElementById('count');
+  const memberFields=document.getElementById('memberFields');
+  function renderMembers(){
+    let n=parseInt(countInput.value,10);
+    const prev=[...memberFields.querySelectorAll('.member-name')].map(i=>i.value);
+    memberFields.innerHTML='';
+    if(!n||n<1) return;
+    if(n>20){ n=20; countInput.value=20; }
+    const note=document.createElement('div'); note.className='members-note';
+    note.textContent='Name of each guest (including you)';
+    memberFields.appendChild(note);
+    for(let i=0;i<n;i++){
+      const wrap=document.createElement('div'); wrap.className='member';
+      const lab=document.createElement('label'); lab.textContent='Guest '+(i+1);
+      const inp=document.createElement('input'); inp.type='text'; inp.className='member-name'; inp.placeholder='Full name'; inp.autocomplete='off';
+      if(prev[i]!==undefined) inp.value=prev[i];
+      else if(i===0) inp.value=(document.getElementById('name').value||'');
+      wrap.appendChild(lab); wrap.appendChild(inp); memberFields.appendChild(wrap);
+    }
+  }
+  countInput.addEventListener('input',renderMembers);
   document.getElementById('rsvpForm').addEventListener('submit',(e)=>{
     e.preventDefault();
     const name=document.getElementById('name').value.trim();
@@ -524,17 +551,23 @@
     if(!name){err.textContent='Please enter your name.';return;}
     if(!phone||phone.replace(/\D/g,'').length<7){err.textContent='Please enter a valid phone number.';return;}
     if(!attending){err.textContent='Please let us know if you can join us.';return;}
-    let comingVal='', guests='';
+    let comingVal='', guests='', members='';
     if(attending==='Joining'){
       if(!coming){err.textContent='Please let us know if you are coming with family or alone.';return;}
       comingVal=coming; guests=1;
       if(coming==='With Family'){
         guests=parseInt(document.getElementById('count').value,10);
         if(!guests||guests<1){err.textContent='Please enter how many people are coming.';return;}
+        if(guests>20) guests=20;
+        const names=[...document.querySelectorAll('.member-name')].map(i=>i.value.trim());
+        if(names.length<guests || names.some(x=>!x)){err.textContent='Please enter the name of each guest.';return;}
+        members=names.join(', ');
+      } else {
+        members=name;
       }
     }
     const note=document.getElementById('note').value.trim();
-    sendRSVP({name,phone,attending,coming:comingVal,guests,note});
+    sendRSVP({name,phone,attending,coming:comingVal,guests,members,note});
   });
   async function sendRSVP(data){
     try{
